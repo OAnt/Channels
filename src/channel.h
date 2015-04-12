@@ -4,7 +4,6 @@
 #include <stdlib.h>
 
 typedef struct queue_st queue_t;
-typedef struct data_control_st dctrl_t;
 
 queue_t * queue_new(unsigned int n, size_t size);
 void * queue_take(queue_t * queue, void * data);

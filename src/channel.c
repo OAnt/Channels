@@ -3,6 +3,7 @@
 #include "channel.h"
 #include "buffer.h"
 
+typedef struct data_control_st dctrl_t;
 struct data_control_st {
     pthread_mutex_t mutex;
     pthread_cond_t empty;

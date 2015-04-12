@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <pthread.h>
 #include "../src/buffer.h"
 #include "../src/channel.h"
 
@@ -124,6 +125,46 @@ void test_new_dummy_channel(void){
     queue_free(q);
 }
 
+typedef struct test_thread_t{
+    queue_t * iq, *oq;
+    int state;
+}test_thread_t;
+
+void * _test_thread(void * data){
+    test_thread_t * tt = (test_thread_t*)data;
+    int i;
+    while(1){
+	queue_take(tt->iq, &i);
+	if(i == -1) break;
+	i += tt->state;
+	queue_put(tt->oq, &i);
+    }
+    return NULL;
+}
+
+void test_threaded_take_put(void){
+    int n = 3;
+    test_thread_t tt = {
+	queue_new(n, sizeof(int)),
+	queue_new(n, sizeof(int)), 
+	10
+    };
+    pthread_t tid;
+    pthread_create(&tid, NULL, &_test_thread, &tt);
+    for(int i = 0; i < 2*n - 1; i++)
+	queue_put(tt.iq, &i);
+    for(int i = 0; i < 2*n - 1; i++){
+	int j;
+	queue_take(tt.oq, &j);
+	assert(i+tt.state == j);
+    }
+    int i = -1;
+    queue_put(tt.iq, &i);
+    pthread_join(tid, NULL);
+    queue_free(tt.iq);
+    queue_free(tt.oq);
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
@@ -133,5 +174,6 @@ int main(int argc, char ** argv){
     test_rb_write_take_full_failure();
     test_new_channel();
     test_new_dummy_channel();
+    test_threaded_take_put();
     return 0;
 }
