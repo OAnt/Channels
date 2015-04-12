@@ -43,39 +43,52 @@ int notify_not_empty(dctrl_t * dctrl) {
     return pthread_cond_broadcast(&(dctrl->empty));
 }
 
-int wait_empty(dctrl_t * dctrl){
-    return pthread_cond_wait(&(dctrl->empty),
-                             &(dctrl->mutex));
+int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
+    return pthread_cond_timedwait(&(dctrl->empty),
+                             &(dctrl->mutex),
+			     abstime);
 }
 
 int notify_not_full(dctrl_t * dctrl) {
     return pthread_cond_broadcast(&(dctrl->full));
 }
 
-int wait_full(dctrl_t * dctrl){
-    return pthread_cond_wait(&(dctrl->full),
-                             &(dctrl->mutex));
+int wait_full(dctrl_t * dctrl, struct timespec * abstime){
+    return pthread_cond_timedwait(&(dctrl->full),
+                             &(dctrl->mutex), 
+			     abstime);
 }
 
-void * queue_take(queue_t *queue, void * data){
+int _queue_take(queue_t *queue, void * data, struct timespec * abstime){
     pthread_mutex_lock(&(queue->ctrl.mutex));
     int res;
     while((res = rb_take(&(queue->rb), data)) == 0){
-        wait_empty(&(queue->ctrl));
+	int err;
+        if((err = wait_empty(&(queue->ctrl), abstime)) != 0) return err;
     }
     pthread_mutex_unlock(&(queue->ctrl.mutex));
     notify_not_full(&(queue->ctrl));
-    return data;
+    return 0;
 }
 
-void queue_put(queue_t * queue, void * value){
+int  queue_take(queue_t * q, void * data){
+    return _queue_take(q, data, NULL);
+}
+
+int _queue_put(queue_t * queue, void * value, struct timespec * abstime){
     pthread_mutex_lock(&(queue->ctrl.mutex));
     int res;
     while((res = rb_write(&(queue->rb), value)) == 0){
-        wait_full(&(queue->ctrl));
+	int err;
+        if((err = wait_full(&(queue->ctrl), abstime)) != 0) return err;
     }
     pthread_mutex_unlock(&(queue->ctrl.mutex));
     notify_not_empty(&(queue->ctrl));
+    return 0;
+}
+
+int queue_put(queue_t *q, void *data){
+    return _queue_put(q, data, NULL);
 }
 
 int queue_init(queue_t * queue, unsigned int n, size_t size){
