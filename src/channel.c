@@ -80,7 +80,10 @@ int _queue_take(queue_t *queue, void * data, struct timespec * abstime){
     int res;
     while((res = rb_take(&(queue->rb), data)) == 0){
 	int err;
-        if((err = wait_empty(&(queue->ctrl), abstime)) != 0) return err;
+        if((err = wait_empty(&(queue->ctrl), abstime)) != 0) {
+	    pthread_mutex_unlock(&(queue->ctrl.mutex));
+	    return err;
+	}
     }
     pthread_mutex_unlock(&(queue->ctrl.mutex));
     notify_not_full(&(queue->ctrl));
@@ -102,7 +105,10 @@ int _queue_put(queue_t * queue, void * value, struct timespec * abstime){
     int res;
     while((res = rb_write(&(queue->rb), value)) == 0){
 	int err;
-        if((err = wait_full(&(queue->ctrl), abstime)) != 0) return err;
+        if((err = wait_full(&(queue->ctrl), abstime)) != 0){
+	    pthread_mutex_unlock(&(queue->ctrl.mutex));
+	    return err;
+	}
     }
     pthread_mutex_unlock(&(queue->ctrl.mutex));
     notify_not_empty(&(queue->ctrl));
