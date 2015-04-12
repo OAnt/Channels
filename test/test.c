@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <pthread.h>
+#include <errno.h>
 #include "../src/buffer.h"
 #include "../src/channel.h"
 
@@ -165,6 +166,25 @@ void test_threaded_take_put(void){
     queue_free(tt.oq);
 }
 
+void test_take_put_timeouts(void){
+    int n = 3;
+    queue_t * q = queue_new(n, sizeof(int));
+    (void)q;
+    for(int i = 0; i < n+1; i++)
+	if(i < n)
+	    assert(queue_timed_put(q, &i, 1) == 0);
+	else
+	    assert(queue_timed_put(q, &i, 1) == ETIMEDOUT);
+    int j;
+    (void)j;
+    for(int i = 0; i < n+1; i++)
+	if(i < n)
+	    assert(queue_timed_take(q, &j, 1) == 0);
+	else
+	    assert(queue_timed_take(q, &j, 1) == ETIMEDOUT);
+    queue_free(q);
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
@@ -175,5 +195,6 @@ int main(int argc, char ** argv){
     test_new_channel();
     test_new_dummy_channel();
     test_threaded_take_put();
+    /*test_take_put_timeouts();*/
     return 0;
 }
