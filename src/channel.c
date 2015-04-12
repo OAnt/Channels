@@ -45,9 +45,13 @@ int notify_not_empty(dctrl_t * dctrl) {
 }
 
 int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
-    return pthread_cond_timedwait(&(dctrl->empty),
-                             &(dctrl->mutex),
-			     abstime);
+    if(abstime)
+	return pthread_cond_timedwait(&(dctrl->empty),
+				 &(dctrl->mutex),
+				 abstime);
+    else
+	return pthread_cond_wait(&(dctrl->empty),
+				 &(dctrl->mutex));
 }
 
 int notify_not_full(dctrl_t * dctrl) {
@@ -55,9 +59,13 @@ int notify_not_full(dctrl_t * dctrl) {
 }
 
 int wait_full(dctrl_t * dctrl, struct timespec * abstime){
-    return pthread_cond_timedwait(&(dctrl->full),
-                             &(dctrl->mutex), 
-			     abstime);
+    if(abstime )
+	return pthread_cond_timedwait(&(dctrl->full),
+				 &(dctrl->mutex), 
+				 abstime);
+    else
+	return pthread_cond_wait(&(dctrl->full),
+				 &(dctrl->mutex));
 }
 
 void _gettimer(struct timespec * ts, unsigned int sec){
@@ -113,8 +121,13 @@ int queue_timed_put(queue_t * q, void *data, unsigned int sec){
 
 int queue_init(queue_t * queue, unsigned int n, size_t size){
     int err_code;
-    if((err_code = rb_init_ring_buffer(&(queue->rb), n, size)) != 0) return err_code;
-    return init_dctrl(&(queue->ctrl));
+    if((err_code = init_dctrl(&(queue->ctrl))) != 0) 
+	return err_code;
+    if((err_code = rb_init_ring_buffer(&(queue->rb), n, size)) != 0){ 
+	dctrl_free(&queue->ctrl);
+	return err_code;
+    }
+    return 0;
 }
 
 queue_t * queue_new(unsigned int n, size_t size){

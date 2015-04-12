@@ -195,6 +195,6 @@ int main(int argc, char ** argv){
     test_new_channel();
     test_new_dummy_channel();
     test_threaded_take_put();
-    /*test_take_put_timeouts();*/
+    test_take_put_timeouts();
     return 0;
 }
