@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <sys/time.h>
 
 #include "channel.h"
 #include "buffer.h"
@@ -59,6 +60,13 @@ int wait_full(dctrl_t * dctrl, struct timespec * abstime){
 			     abstime);
 }
 
+void _gettimer(struct timespec * ts, unsigned int sec){
+    struct timeval tv;
+    gettimeofday(&tv, NULL);    
+    ts->tv_nsec = 0;
+    ts->tv_sec = tv.tv_sec + sec;
+}
+
 int _queue_take(queue_t *queue, void * data, struct timespec * abstime){
     pthread_mutex_lock(&(queue->ctrl.mutex));
     int res;
@@ -71,8 +79,14 @@ int _queue_take(queue_t *queue, void * data, struct timespec * abstime){
     return 0;
 }
 
-int  queue_take(queue_t * q, void * data){
+int queue_take(queue_t * q, void * data){
     return _queue_take(q, data, NULL);
+}
+
+int queue_timed_take(queue_t * q, void * data, unsigned int sec){
+    struct timespec ts;
+    _gettimer(&ts, sec);
+    return _queue_take(q, data, &ts);
 }
 
 int _queue_put(queue_t * queue, void * value, struct timespec * abstime){
@@ -89,6 +103,12 @@ int _queue_put(queue_t * queue, void * value, struct timespec * abstime){
 
 int queue_put(queue_t *q, void *data){
     return _queue_put(q, data, NULL);
+}
+
+int queue_timed_put(queue_t * q, void *data, unsigned int sec){
+    struct timespec ts;
+    _gettimer(&ts, sec);
+    return _queue_put(q, data, &ts);
 }
 
 int queue_init(queue_t * queue, unsigned int n, size_t size){
