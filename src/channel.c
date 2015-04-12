@@ -1,4 +1,7 @@
+#include <pthread.h>
+
 #include "channel.h"
+#include "buffer.h"
 
 struct data_control_st {
     pthread_mutex_t mutex;
@@ -80,8 +83,19 @@ int queue_init(queue_t * queue, unsigned int n, size_t size){
     return init_dctrl(&(queue->ctrl));
 }
 
+queue_t * queue_new(unsigned int n, size_t size){
+    queue_t * q = calloc(1, sizeof(queue_t));
+    if(!q) return q;
+    if(queue_init(q, n, size) != 0){
+	free(q);
+	return NULL;
+    }
+    return q;
+}
+
 void queue_free(queue_t * queue){
     rb_free(&(queue->rb));
     dctrl_free(&(queue->ctrl));
+    free(queue);
 }
 

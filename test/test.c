@@ -1,5 +1,6 @@
 #include <assert.h>
 #include "../src/buffer.h"
+#include "../src/channel.h"
 
 void test_init_ring_buffer(void){
     ring_buffer_t r_buf;
@@ -71,6 +72,58 @@ void test_rb_write_take_full_failure(void){
     rb_free(&rb);
 }
 
+void test_new_channel(void){
+    unsigned int n = 3;
+    queue_t * q = queue_new(n, sizeof(int));
+    for(unsigned int i = 0; i < n; i++){
+	queue_put(q, &i);
+    }
+    for(unsigned int i = 0; i < n; i++){
+	int res;
+	queue_take(q, &res);
+	assert(res == i);
+    }
+    queue_free(q);
+}
+
+typedef struct dummy_t{
+    int i;
+    int j;
+}dummy_t;
+
+typedef queue_t dummy_queue_t;
+
+static inline dummy_queue_t * dummy_queue_new(unsigned int n){
+    return queue_new(n, sizeof(dummy_t));
+}
+
+static inline void dummy_queue_put(dummy_queue_t * q, dummy_t d){
+    queue_put(q, &d);
+}
+
+static inline dummy_t dummy_queue_take(dummy_queue_t * q){
+    dummy_t d;
+    queue_take(q, &d);
+    return d;
+}
+
+void test_new_dummy_channel(void){
+    unsigned int n = 3;
+    dummy_queue_t * q = dummy_queue_new(n);
+    for(unsigned int i = 0; i < n; i++){
+	dummy_t d = {i, i};
+	dummy_queue_put(q, d);
+    }
+    for(unsigned int i = 0; i < n; i++){
+	dummy_t comp = {i, i};
+	dummy_t d = dummy_queue_take(q);
+	(void)comp;
+	(void)d;
+	assert(comp.i == d.i && comp.j == d.j);
+    }
+    queue_free(q);
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
@@ -78,5 +131,7 @@ int main(int argc, char ** argv){
     test_rb_write_success();
     test_rb_take_success();
     test_rb_write_take_full_failure();
+    test_new_channel();
+    test_new_dummy_channel();
     return 0;
 }
