@@ -12,7 +12,7 @@ LDLIBS =
 INC_PATH = 
 endif
 CFLAGS = -g -Wall
-LDFLAGS =
+LDFLAGS = -pthread
 SRCS = src/buffer.c src/channel.c
 SRCS_MAIN = src/main.c
 HEADERS = src/buffer.h src/channel.h
