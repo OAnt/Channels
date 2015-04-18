@@ -19,7 +19,8 @@ int buffer_init(buffer_t * r_buf,
     return 0;
 }
 
-int rb_write(buffer_t * rb, void * data){
+int rb_write(buffer_t * rb, void * data, int _priority){
+    (void)_priority;
     assert(rb->type == RING_BUFFER);
     if(rb_available(rb) > 0) {
 	memmove(rb->buffer + rb->start*rb->size,

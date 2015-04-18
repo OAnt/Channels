@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <errno.h>
+#include <stdio.h>
 #include "../src/buffer.h"
 #include "../src/channel.h"
 
@@ -23,7 +24,7 @@ void test_rb_write_success(void){
     (void)value;
     assert(*(int*)rb.buffer == 0);
     assert(rb_available(&rb) == n);
-    assert(rb_write(&rb, &value));
+    assert(rb_write(&rb, &value, 0));
     assert(rb_available(&rb) == n - 1);
     for(unsigned int i = 0; i < n; i++)
 	if(i == 0)
@@ -58,9 +59,9 @@ void test_rb_write_take_full_failure(void){
     buffer_init(&rb, n, sizeof(int), RING_BUFFER);
     for(unsigned int i = 0; i < n + 1; i++)
 	if(i < n)
-	    assert(rb_write(&rb, &i));
+	    assert(rb_write(&rb, &i, 0));
 	else
-	    assert(!rb_write(&rb, &i));
+	    assert(!rb_write(&rb, &i, 0));
     for(unsigned int i = 0; i < n; i++)
 	assert(((int*)rb.buffer)[i] == i);
     int res;
@@ -195,19 +196,19 @@ typedef struct {
 int comp_int(const void * a, const void * b){
     dummy_heap_t * da = (dummy_heap_t*)a;
     dummy_heap_t * db = (dummy_heap_t*)b;
-    return da->p > db->p;
+    return da->p - db->p;
 }
 
 void test_hb_write_take(void){
     buffer_t hb;
     heap_init(&hb, N, sizeof(int));
     dummy_heap_t dh[N] = {{1, 3}, {2, 4}, 
-        {2, 4}, {1, 5}, {3, 8}, {6, 7}, {8, 9}};
+        {0, 4}, {5, 5}, {3, 8}, {6, 7}, {8, 9}};
     int i = 0;
     for(i = 0; i < N; i++)
         assert(hb_write(&hb, &dh[i].v, dh[i].p));
     assert(hb_write(&hb, &i, 99) == 0);
-    qsort(dh, N, sizeof(dummy_heap_t), comp_int); 
+    qsort(dh, N, sizeof(dummy_heap_t), &comp_int); 
     for(i = 0; i < N; i++){
         int v;
         (void)v;
@@ -215,6 +216,27 @@ void test_hb_write_take(void){
         assert(dh[N-i-1].v == v);
     }
     assert(hb_take(&hb, &i) == 0);
+    buffer_free(&hb);
+}
+
+void test_priority_queue_write_take(void){
+    priority_queue_t * q = priority_queue_new(N, sizeof(int));
+    (void)q;
+    dummy_heap_t dh[N] = {{1, 3}, {2, 4}, 
+        {2, 4}, {1, 5}, {3, 8}, {6, 7}, {8, 9}};
+    int i = 0;
+    for(i = 0; i < N; i++)
+        assert(priority_queue_timed_put(q, &dh[i].v, dh[i].p, 2) == 0);
+    assert(priority_queue_timed_put(q, &i, 99, 1) == ETIMEDOUT);
+    qsort(dh, N, sizeof(dummy_heap_t), comp_int); 
+    for(i = 0; i < N; i++){
+        int v;
+        (void)v;
+        assert(priority_queue_timed_take(q, &v, 2) == 0);
+        assert(dh[N-i-1].v == v);
+    }
+    assert(priority_queue_timed_take(q, &i, 1) == ETIMEDOUT);
+    priority_queue_free(q);
 }
 
 int main(int argc, char ** argv){
@@ -229,5 +251,6 @@ int main(int argc, char ** argv){
     test_threaded_take_put();
     test_take_put_timeouts();
     test_hb_write_take();
+    test_priority_queue_write_take();
     return 0;
 }
