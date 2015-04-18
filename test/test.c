@@ -4,21 +4,21 @@
 #include "../src/buffer.h"
 #include "../src/channel.h"
 
-void test_init_ring_buffer(void){
-    ring_buffer_t r_buf;
+void test_init_buffer(void){
+    buffer_t r_buf;
     unsigned int n = 10;
-    rb_init_ring_buffer(&r_buf, n, sizeof(int));
+    buffer_init(&r_buf, n, sizeof(int), RING_BUFFER);
     assert(r_buf.buffer);
     assert(r_buf.n = 10);
     assert(r_buf.size = sizeof(int));
     assert(r_buf.used == 0 && r_buf.start == 0 && r_buf.end == 0);
-    rb_free(&r_buf);
+    buffer_free(&r_buf);
 }
 
 void test_rb_write_success(void){
-    ring_buffer_t rb;
+    buffer_t rb;
     unsigned int n = 3;
-    rb_init_ring_buffer(&rb, n, sizeof(int));
+    buffer_init(&rb, n, sizeof(int), RING_BUFFER);
     int value = 12;
     (void)value;
     assert(*(int*)rb.buffer == 0);
@@ -30,13 +30,13 @@ void test_rb_write_success(void){
 	    assert(*(int*)rb.buffer == value);
 	else
 	    assert(*(int*)(rb.buffer + i) == 0);
-    rb_free(&rb);
+    buffer_free(&rb);
 }
 
 void test_rb_take_success(void){
-    ring_buffer_t rb;
+    buffer_t rb;
     unsigned int n = 3;
-    rb_init_ring_buffer(&rb, n, sizeof(int));
+    buffer_init(&rb, n, sizeof(int), RING_BUFFER);
     int value = 12;
     (void)value;
     ((int*)rb.buffer)[0] = value;
@@ -49,13 +49,13 @@ void test_rb_take_success(void){
     assert(result == value);
     assert(rb_available(&rb) == n);
     assert(rb.start == 1);
-    rb_free(&rb);
+    buffer_free(&rb);
 }
 
 void test_rb_write_take_full_failure(void){
-    ring_buffer_t rb;
+    buffer_t rb;
     unsigned int n = 3;
-    rb_init_ring_buffer(&rb, n, sizeof(int));
+    buffer_init(&rb, n, sizeof(int), RING_BUFFER);
     for(unsigned int i = 0; i < n + 1; i++)
 	if(i < n)
 	    assert(rb_write(&rb, &i));
@@ -71,7 +71,7 @@ void test_rb_write_take_full_failure(void){
 	    assert(res == i);
 	}else
 	    assert(!rb_take(&rb, &res));
-    rb_free(&rb);
+    buffer_free(&rb);
 }
 
 void test_new_channel(void){
@@ -185,10 +185,42 @@ void test_take_put_timeouts(void){
     queue_free(q);
 }
 
+typedef struct {
+    int p;
+    int v;
+}dummy_heap_t;
+
+#define N 7
+
+int comp_int(const void * a, const void * b){
+    dummy_heap_t * da = (dummy_heap_t*)a;
+    dummy_heap_t * db = (dummy_heap_t*)b;
+    return da->p > db->p;
+}
+
+void test_hb_write_take(void){
+    buffer_t hb;
+    heap_init(&hb, N, sizeof(int));
+    dummy_heap_t dh[N] = {{1, 3}, {2, 4}, 
+        {2, 4}, {1, 5}, {3, 8}, {6, 7}, {8, 9}};
+    int i = 0;
+    for(i = 0; i < N; i++)
+        assert(hb_write(&hb, &dh[i].v, dh[i].p));
+    assert(hb_write(&hb, &i, 99) == 0);
+    qsort(dh, N, sizeof(dummy_heap_t), comp_int); 
+    for(i = 0; i < N; i++){
+        int v;
+        (void)v;
+        assert(hb_take(&hb, &v));
+        assert(dh[N-i-1].v == v);
+    }
+    assert(hb_take(&hb, &i) == 0);
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
-    test_init_ring_buffer();
+    test_init_buffer();
     test_rb_write_success();
     test_rb_take_success();
     test_rb_write_take_full_failure();
@@ -196,5 +228,6 @@ int main(int argc, char ** argv){
     test_new_dummy_channel();
     test_threaded_take_put();
     test_take_put_timeouts();
+    test_hb_write_take();
     return 0;
 }

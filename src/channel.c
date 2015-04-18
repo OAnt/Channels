@@ -9,23 +9,26 @@ struct data_control_st {
     pthread_mutex_t mutex;
     pthread_cond_t empty;
     pthread_cond_t full;
-    int active;
 };
 
 struct queue_st {
     dctrl_t ctrl;
-    ring_buffer_t rb;
+    buffer_t rb;
 };
 
 int init_dctrl(dctrl_t * dctrl){
     int err_code;
     if((err_code = pthread_mutex_init(&(dctrl->mutex), NULL)))
         return err_code;
-    if((err_code = pthread_cond_init(&(dctrl->empty), NULL)))
+    if((err_code = pthread_cond_init(&(dctrl->empty), NULL))){
+	pthread_mutex_destroy(&(dctrl->mutex));
         return err_code;
-    if((err_code = pthread_cond_init(&(dctrl->full), NULL)))
+    }
+    if((err_code = pthread_cond_init(&(dctrl->full), NULL))){
+	pthread_mutex_destroy(&(dctrl->mutex));
+	pthread_cond_destroy(&(dctrl->empty));
         return err_code;
-    dctrl->active = 0;
+    }
     return 0;
 }
 
@@ -36,7 +39,6 @@ int dctrl_free(dctrl_t * dctrl){
         return 1;
     if(pthread_cond_destroy(&(dctrl->full)))
         return 1;
-    dctrl->active = 0;
     return 0;
 }
 
@@ -59,7 +61,7 @@ int notify_not_full(dctrl_t * dctrl) {
 }
 
 int wait_full(dctrl_t * dctrl, struct timespec * abstime){
-    if(abstime )
+    if(abstime)
 	return pthread_cond_timedwait(&(dctrl->full),
 				 &(dctrl->mutex), 
 				 abstime);
@@ -129,7 +131,7 @@ int queue_init(queue_t * queue, unsigned int n, size_t size){
     int err_code;
     if((err_code = init_dctrl(&(queue->ctrl))) != 0) 
 	return err_code;
-    if((err_code = rb_init_ring_buffer(&(queue->rb), n, size)) != 0){ 
+    if((err_code = buffer_init(&(queue->rb), n, size, RING_BUFFER)) != 0){ 
 	dctrl_free(&queue->ctrl);
 	return err_code;
     }
@@ -147,7 +149,7 @@ queue_t * queue_new(unsigned int n, size_t size){
 }
 
 void queue_free(queue_t * queue){
-    rb_free(&(queue->rb));
+    buffer_free(&(queue->rb));
     dctrl_free(&(queue->ctrl));
     free(queue);
 }
