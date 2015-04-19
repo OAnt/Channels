@@ -239,6 +239,27 @@ void test_priority_queue_write_take(void){
     priority_queue_free(q);
 }
 
+void _queue_set_not_empty_callback(queue_t * q, void(*callback)(void * data), void * data);
+void _queue_destroy_not_empty_callback(queue_t * q);
+
+void dummy_callback(void * data){
+    *((int*)data) += 1;
+}
+
+void test_callback(void){
+    queue_t * q = queue_new(5, sizeof(int));
+    int d = 0;
+    _queue_set_not_empty_callback(q, dummy_callback, &d);
+    queue_put(q, &d);
+    queue_put(q, &d);
+    queue_put(q, &d);
+    assert(d == 3);
+    _queue_destroy_not_empty_callback(q);
+    queue_put(q, &d);
+    queue_put(q, &d);
+    assert(d == 3);
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
@@ -252,5 +273,6 @@ int main(int argc, char ** argv){
     test_take_put_timeouts();
     test_hb_write_take();
     test_priority_queue_write_take();
+    test_callback();
     return 0;
 }

@@ -10,11 +10,21 @@ typedef enum{
     PRIORITY_CHANNEL,
 }channel_type_t;
 
+typedef void(*callback_t)(void * data);
+
+typedef struct{
+    callback_t callback;
+    void *data;
+    int set;
+}notification_callback_t;
+
 typedef struct data_control_st dctrl_t;
 struct data_control_st {
     pthread_mutex_t mutex;
     pthread_cond_t empty;
     pthread_cond_t full;
+    notification_callback_t not_full_callback;
+    notification_callback_t not_empty_callback;
 };
 
 struct queue_st {
@@ -36,6 +46,8 @@ int init_dctrl(dctrl_t * dctrl){
 	pthread_cond_destroy(&(dctrl->empty));
         return err_code;
     }
+    dctrl->not_empty_callback.set = 0;
+    dctrl->not_full_callback.set = 0;
     return 0;
 }
 
@@ -49,8 +61,57 @@ int dctrl_free(dctrl_t * dctrl){
     return 0;
 }
 
+static inline void __set_callback(notification_callback_t * nc, 
+        callback_t c,
+        void * d)
+{
+    nc->callback = c;
+    nc->data = d;
+    nc->set = 1;
+}
+
+void _queue_set_not_empty_callback(queue_t * q, callback_t callback,
+        void * data)
+{
+    pthread_mutex_lock(&(q->ctrl.mutex));
+    __set_callback(&(q->ctrl.not_empty_callback), callback, data); 
+    pthread_mutex_unlock(&(q->ctrl.mutex));
+}
+
+void _queue_set_not_full_callback(queue_t * q, callback_t callback,
+        void * data)
+{
+    pthread_mutex_lock(&(q->ctrl.mutex));
+    __set_callback(&(q->ctrl.not_full_callback), callback, data); 
+    pthread_mutex_unlock(&(q->ctrl.mutex));
+}
+
+void _queue_destroy_not_empty_callback(queue_t * q){
+    pthread_mutex_lock(&(q->ctrl.mutex));
+    q->ctrl.not_empty_callback.set = 0;
+    pthread_mutex_unlock(&(q->ctrl.mutex));
+}
+
+void _queue_destroy_not_full_callback(queue_t * q){
+    pthread_mutex_lock(&(q->ctrl.mutex));
+    q->ctrl.not_full_callback.set = 0;
+    pthread_mutex_unlock(&(q->ctrl.mutex));
+}
+
+static inline int __notify_condition(pthread_cond_t * cond, 
+        notification_callback_t * nc)
+{
+    if(pthread_cond_broadcast(cond) == 0){
+        if(nc->set)
+            nc->callback(nc->data);
+        return 0;
+    }else
+        return EINVAL;
+}
+
 int notify_not_empty(dctrl_t * dctrl) {
-    return pthread_cond_broadcast(&(dctrl->empty));
+    return __notify_condition(&dctrl->empty, 
+            &dctrl->not_empty_callback);
 }
 
 int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
@@ -64,7 +125,8 @@ int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
 }
 
 int notify_not_full(dctrl_t * dctrl) {
-    return pthread_cond_broadcast(&(dctrl->full));
+    return __notify_condition(&dctrl->full, 
+            &dctrl->not_full_callback);
 }
 
 int wait_full(dctrl_t * dctrl, struct timespec * abstime){
