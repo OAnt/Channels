@@ -22,4 +22,14 @@ int priority_queue_timed_put(priority_queue_t * q,
         void *data, int priority, unsigned int sec);
 void priority_queue_free(priority_queue_t * q);
 
+//beware a queue can only be selected once
+//for not full and once for not empty
+//at the time
+int queue_select_not_full(queue_t ** q, int n,
+        queue_t ** selected_queue);
+int queue_select_not_empty(queue_t ** q, int n,
+        queue_t ** selected_queue);
+
+void queue_print(queue_t * q);
+
 #endif

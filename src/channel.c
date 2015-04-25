@@ -1,16 +1,22 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include "channel.h"
 #include "buffer.h"
 
+static char * _channel_type_name[] = {
+    "FIFO_CHANNEL",
+    "PRIORITY_CHANNEL"
+};
+
 typedef enum{
-    FIFO_CHANNEL,
-    PRIORITY_CHANNEL,
+    FIFO_CHANNEL = 0,
+    PRIORITY_CHANNEL = 1,
 }channel_type_t;
 
-typedef void(*callback_t)(void * data);
+typedef void(*callback_t)(queue_t * q, void * data);
 
 typedef struct{
     callback_t callback;
@@ -32,6 +38,10 @@ struct queue_st {
     dctrl_t ctrl;
     buffer_t rb;
 };
+
+void queue_print(queue_t * q){
+    printf("%s\n", _channel_type_name[q->type]);
+}
 
 int init_dctrl(dctrl_t * dctrl){
     int err_code;
@@ -65,6 +75,7 @@ static inline void __set_callback(notification_callback_t * nc,
         callback_t c,
         void * d)
 {
+    assert(nc->set == 0);
     nc->callback = c;
     nc->data = d;
     nc->set = 1;
@@ -98,20 +109,21 @@ void _queue_destroy_not_full_callback(queue_t * q){
     pthread_mutex_unlock(&(q->ctrl.mutex));
 }
 
-static inline int __notify_condition(pthread_cond_t * cond, 
+static inline int __notify_condition(queue_t * q,
+        pthread_cond_t * cond, 
         notification_callback_t * nc)
 {
     if(pthread_cond_broadcast(cond) == 0){
         if(nc->set)
-            nc->callback(nc->data);
+            nc->callback(q, nc->data);
         return 0;
     }else
         return EINVAL;
 }
 
-int notify_not_empty(dctrl_t * dctrl) {
-    return __notify_condition(&dctrl->empty, 
-            &dctrl->not_empty_callback);
+int notify_not_empty(queue_t * q) {
+    return __notify_condition(q, &q->ctrl.empty, 
+            &q->ctrl.not_empty_callback);
 }
 
 int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
@@ -124,9 +136,9 @@ int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
 				 &(dctrl->mutex));
 }
 
-int notify_not_full(dctrl_t * dctrl) {
-    return __notify_condition(&dctrl->full, 
-            &dctrl->not_full_callback);
+int notify_not_full(queue_t * q) {
+    return __notify_condition(q, &q->ctrl.full, 
+            &q->ctrl.not_full_callback);
 }
 
 int wait_full(dctrl_t * dctrl, struct timespec * abstime){
@@ -159,7 +171,7 @@ int _queue_take(queue_t *queue, void * data,
 	}
     }
     pthread_mutex_unlock(&(queue->ctrl.mutex));
-    notify_not_full(&(queue->ctrl));
+    notify_not_full(queue);
     return 0;
 }
 
@@ -176,7 +188,7 @@ int _queue_put(queue_t * queue, void * value,
 	}
     }
     pthread_mutex_unlock(&(queue->ctrl.mutex));
-    notify_not_empty(&(queue->ctrl));
+    notify_not_empty(queue);
     return 0;
 }
 
@@ -275,3 +287,106 @@ void priority_queue_free(priority_queue_t * q){
     queue_free(q);
 }
 
+int _queue_peek_used(queue_t * q){
+    return rb_has_next(&(q->rb));
+}
+
+int _queue_peek_available(queue_t * q){
+    return rb_available(&(q->rb));
+}
+
+typedef struct{
+    queue_t * q;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+}select_data_t;
+
+int select_data_init(select_data_t * sdata){
+    sdata->q = NULL;
+    int err_code;
+    if((err_code = pthread_mutex_init(&(sdata->mutex), NULL)))
+        return err_code;
+    if((err_code = pthread_cond_init(&(sdata->cond), NULL))){
+	pthread_mutex_destroy(&(sdata->mutex));
+        return err_code;
+    }
+    return 0;
+}
+
+int select_data_destroy(select_data_t * sdata){
+    if(pthread_cond_destroy(&sdata->cond) ||
+            pthread_mutex_destroy(&sdata->mutex))
+        return 1;
+    else
+        return 0;
+}
+
+void __select_callback(queue_t * q, void * data){
+    select_data_t * sdata = (select_data_t*)data;
+    pthread_mutex_lock(&(sdata->mutex));
+    sdata->q = q;
+    pthread_mutex_unlock(&(sdata->mutex));
+    pthread_cond_broadcast(&(sdata->cond));
+}
+
+int _select(queue_t ** q, int n, queue_t ** selected_queue,
+        void(*callback_setter)(queue_t*, callback_t, void *),
+        void(*callback_destroyer)(queue_t *q),
+        int peek_function(queue_t * q),
+        struct timespec * ts){
+    int i = 0;
+    for(i = 0; i < n; i++){
+        if(peek_function(q[i]) > 0){
+            //this queue already satisfy the condition
+            //returning it
+            *selected_queue = q[i];
+            return 0;
+        }
+    }
+    int err;
+    select_data_t sdata;
+    if((err = select_data_init(&sdata)) != 0) return err;
+    err = pthread_mutex_lock(&(sdata.mutex));
+    if(err){
+        select_data_destroy(&sdata);
+        return err;
+    }
+    for(i = 0; i < n;i ++)
+        callback_setter(q[i], &__select_callback, &sdata);
+    if(ts) 
+        err = pthread_cond_timedwait(&(sdata.cond), &(sdata.mutex), ts);
+    else 
+        err = pthread_cond_wait(&(sdata.cond), &(sdata.mutex));
+    if(err != 0){
+        select_data_destroy(&sdata);
+        pthread_mutex_unlock(&(sdata.mutex));
+        return err;
+    }
+    *selected_queue = sdata.q;
+    for(i = 0; i < n; i++)
+        callback_destroyer(q[i]);
+    pthread_mutex_unlock(&(sdata.mutex));
+    select_data_destroy(&sdata);
+    return 0;
+}
+
+int queue_select_not_full(queue_t ** q, int n, 
+        queue_t ** selected_queue)
+{
+    return _select(q, n, selected_queue, 
+        _queue_set_not_full_callback, 
+        _queue_destroy_not_full_callback, 
+        _queue_peek_available,
+        NULL);
+}
+
+
+int queue_select_not_empty(queue_t ** q, int n,
+        queue_t ** selected_queue)
+{
+    return _select(q, n, selected_queue,
+            _queue_set_not_empty_callback,
+            _queue_destroy_not_empty_callback, 
+            _queue_peek_used,
+            NULL);
+}
