@@ -294,6 +294,7 @@ typedef struct {
     int ns;
     queue_t ** q;
     queue_t * ctrlq;
+    pthread_mutex_t * mutex;
 }thread_ctrl_t;
 
 void * waiter_thread(void * data){
@@ -305,10 +306,12 @@ void * waiter_thread(void * data){
     int i = 0;
     queue_t * sq;
     while(i < ns){
-        queue_select_not_empty(q, n, &sq); 
         queue_t * ptr;
         queue_take(ctrlq, &ptr);
+        queue_select_not_empty(q, n, &sq); 
         assert(ptr == sq);
+        int d;
+        queue_take(sq, &d);
         i++;
     }
     return NULL;
@@ -321,14 +324,14 @@ void test_select(void){
     for(i=0; i < n; i++)
         qarray[i] = queue_new(3, sizeof(int));
     queue_t * ctrlq = queue_new(1, sizeof(queue_t *));
-    thread_ctrl_t tctrl = {n, 3, qarray, ctrlq};
+    thread_ctrl_t tctrl = {n, 3, qarray, ctrlq, PTHREAD_MUTEX_NORMAL};
     pthread_t pthread;
     pthread_create(&pthread, NULL, waiter_thread, &tctrl);
     srand(12345);
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
         queue_put(qarray[q], &i);
-        queue_put(ctrlq, qarray + q);
+        queue_put(ctrlq, &qarray[q]);
     }
     void * zzz;
     pthread_join(pthread, &zzz);
