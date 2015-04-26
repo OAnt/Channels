@@ -243,8 +243,8 @@ void test_priority_queue_write_take(void){
     printf("%s: \n", __func__);
     priority_queue_t * q = priority_queue_new(N, sizeof(int));
     (void)q;
-    dummy_heap_t dh[N] = {{1, 3}, {2, 4}, 
-        {2, 4}, {1, 5}, {3, 8}, {6, 7}, {8, 9}};
+    dummy_heap_t dh[N] = {{1, 3}, {9, 4}, 
+        {2, 4}, {10, 5}, {3, 8}, {6, 7}, {8, 9}};
     int i = 0;
     for(i = 0; i < N; i++)
         assert(priority_queue_timed_put(q, &dh[i].v, dh[i].p, 2) == 0);
@@ -294,7 +294,6 @@ typedef struct {
     int ns;
     queue_t ** q;
     queue_t * ctrlq;
-    pthread_mutex_t * mutex;
 }thread_ctrl_t;
 
 void * waiter_thread(void * data){
@@ -304,15 +303,19 @@ void * waiter_thread(void * data){
     int n = tctrl->n;
     int ns = tctrl->ns;
     int i = 0;
-    queue_t * sq;
+    queue_t * sq[n];
     while(i < ns){
         queue_t * ptr;
+        int ns = 0;
         queue_take(ctrlq, &ptr);
-        queue_select_not_empty(q, n, &sq); 
-        assert(ptr == sq);
-        int d;
-        queue_take(sq, &d);
-        i++;
+        queue_select_not_empty(q, n, sq, &ns); 
+        int j;
+        for(j = 0; j < ns; j++){
+            queue_t * d;
+            queue_take(sq[j], &d);
+            assert(sq[j] == d);
+            i++;
+        }
     }
     return NULL;
 }
@@ -322,16 +325,16 @@ void test_select(void){
     int i, n = N;
     queue_t * qarray[n];
     for(i=0; i < n; i++)
-        qarray[i] = queue_new(3, sizeof(int));
+        qarray[i] = queue_new(3, sizeof(queue_t*));
     queue_t * ctrlq = queue_new(1, sizeof(queue_t *));
-    thread_ctrl_t tctrl = {n, 3, qarray, ctrlq, PTHREAD_MUTEX_NORMAL};
+    thread_ctrl_t tctrl = {n, 13, qarray, ctrlq};
     pthread_t pthread;
     pthread_create(&pthread, NULL, waiter_thread, &tctrl);
     srand(12345);
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
-        queue_put(qarray[q], &i);
         queue_put(ctrlq, &qarray[q]);
+        queue_put(qarray[q], &qarray[q]);
     }
     void * zzz;
     pthread_join(pthread, &zzz);

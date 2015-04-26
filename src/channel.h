@@ -26,9 +26,9 @@ void priority_queue_free(priority_queue_t * q);
 //for not full and once for not empty
 //at the time
 int queue_select_not_full(queue_t ** q, int n,
-        queue_t ** selected_queue);
+        queue_t ** selected_queue, int * ns);
 int queue_select_not_empty(queue_t ** q, int n,
-        queue_t ** selected_queue);
+        queue_t ** selected_queue, int * ns);
 
 void queue_print(queue_t * q);
 
