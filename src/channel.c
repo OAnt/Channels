@@ -338,6 +338,7 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
         int peek_function(queue_t * q),
         struct timespec * ts){
     int i = 0;
+    *ns = 0;
     for(i = 0; i < n; i++){
         _queue_lock(q[i]);
         if(peek_function(q[i]) > 0){
