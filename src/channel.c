@@ -109,21 +109,23 @@ void _queue_destroy_not_full_callback(queue_t * q){
     pthread_mutex_unlock(&(q->ctrl.mutex));
 }
 
-static inline int __notify_condition(queue_t * q,
-        pthread_cond_t * cond, 
+static inline void _queue_callback(queue_t * q, 
         notification_callback_t * nc)
 {
+    if(nc->set)
+        nc->callback(q, nc->data);
+}
+
+static inline int __notify_condition(pthread_cond_t * cond)
+{
     if(pthread_cond_broadcast(cond) == 0){
-        if(nc->set)
-            nc->callback(q, nc->data);
         return 0;
     }else
         return EINVAL;
 }
 
 int notify_not_empty(queue_t * q) {
-    return __notify_condition(q, &q->ctrl.empty, 
-            &q->ctrl.not_empty_callback);
+    return __notify_condition(&q->ctrl.empty);
 }
 
 int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
@@ -137,8 +139,7 @@ int wait_empty(dctrl_t * dctrl, struct timespec * abstime){
 }
 
 int notify_not_full(queue_t * q) {
-    return __notify_condition(q, &q->ctrl.full, 
-            &q->ctrl.not_full_callback);
+    return __notify_condition(&q->ctrl.full);
 }
 
 int wait_full(dctrl_t * dctrl, struct timespec * abstime){
@@ -172,6 +173,7 @@ int _queue_take(queue_t *queue, void * data,
     }
     notify_not_full(queue);
     pthread_mutex_unlock(&(queue->ctrl.mutex));
+    _queue_callback(queue, &queue->ctrl.not_full_callback);
     return 0;
 }
 
@@ -189,6 +191,7 @@ int _queue_put(queue_t * queue, void * value,
     }
     notify_not_empty(queue);
     pthread_mutex_unlock(&(queue->ctrl.mutex));
+    _queue_callback(queue, &queue->ctrl.not_empty_callback);
     return 0;
 }
 
