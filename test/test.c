@@ -343,6 +343,23 @@ void test_select(void){
     printf("OK\n");
 }
 
+void test_timed_select(void){
+    printf("%s: \n", __func__);
+    int i, n = N;
+    queue_t * qarray[n];
+    queue_t * sq[n];
+    int ns;
+    (void)ns;
+    (void)sq;
+    for(i=0; i < n; i++)
+        qarray[i] = queue_new(3, sizeof(queue_t*));
+    assert(queue_timed_select_not_empty(qarray, n,
+                sq, &ns, 1) == ETIMEDOUT);
+    for(i=0; i < n; i++)
+        queue_free(qarray[i]);
+    printf("OK\n");
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
@@ -358,5 +375,6 @@ int main(int argc, char ** argv){
     test_priority_queue_write_take();
     test_callback();
     test_select();
+    test_timed_select();
     return 0;
 }

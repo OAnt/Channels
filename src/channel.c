@@ -71,6 +71,14 @@ int dctrl_free(dctrl_t * dctrl){
     return 0;
 }
 
+static inline void _queue_lock(queue_t * q){
+    pthread_mutex_lock(&q->ctrl.mutex);
+}
+
+static inline void _queue_unlock(queue_t * q){
+    pthread_mutex_unlock(&q->ctrl.mutex);
+}
+
 static inline void __set_callback(notification_callback_t * nc, 
         callback_t c,
         void * d)
@@ -324,14 +332,6 @@ void __select_callback(queue_t * q, void * data){
     pthread_mutex_unlock(&(sdata->mutex));
 }
 
-static inline void _queue_lock(queue_t * q){
-    pthread_mutex_lock(&q->ctrl.mutex);
-}
-
-static inline void _queue_unlock(queue_t * q){
-    pthread_mutex_unlock(&q->ctrl.mutex);
-}
-
 int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
         void(*callback_setter)(queue_t*, callback_t, void *),
         void(*callback_destroyer)(queue_t *q),
@@ -395,6 +395,18 @@ int queue_select_not_full(queue_t ** q, int n,
         NULL);
 }
 
+int queue_timed_select_not_full(queue_t ** q, int n,
+        queue_t ** selected_queue, int *ns,
+        unsigned int s)
+{
+    struct timespec ts;
+    _gettimer(&ts, s);
+    return _select(q, n, selected_queue, ns,
+        _queue_set_not_full_callback, 
+        _queue_destroy_not_full_callback, 
+        _queue_peek_available,
+        &ts);
+}
 
 int queue_select_not_empty(queue_t ** q, int n,
         queue_t ** selected_queue, int * ns)
@@ -405,3 +417,17 @@ int queue_select_not_empty(queue_t ** q, int n,
             _queue_peek_used,
             NULL);
 }
+
+int queue_timed_select_not_empty(queue_t ** q, int n,
+        queue_t ** selected_queue, int * ns,
+        unsigned int s)
+{
+    struct timespec ts;
+    _gettimer(&ts, s);
+    return _select(q, n, selected_queue, ns,
+            _queue_set_not_empty_callback,
+            _queue_destroy_not_empty_callback, 
+            _queue_peek_used,
+            &ts);
+}
+

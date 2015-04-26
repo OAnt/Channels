@@ -27,8 +27,14 @@ void priority_queue_free(priority_queue_t * q);
 //at the time
 int queue_select_not_full(queue_t ** q, int n,
         queue_t ** selected_queue, int * ns);
+int queue_timed_select_not_full(queue_t ** q, int n,
+        queue_t ** selected_queue, int *ns,
+        unsigned int s);
 int queue_select_not_empty(queue_t ** q, int n,
         queue_t ** selected_queue, int * ns);
+int queue_timed_select_not_empty(queue_t ** q, int n,
+        queue_t ** selected_queue, int * ns,
+        unsigned int s);
 
 void queue_print(queue_t * q);
 
