@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "../src/buffer.h"
 #include "../src/channel.h"
 
@@ -302,14 +303,12 @@ void * waiter_thread(void * data){
     int ns = tctrl->ns;
     int i = 0;
     queue_t * sq[n];
-    while(i < ns){
+    while(i < 2*ns){
         int ns = 0;
         queue_select_not_empty(q, n, sq, &ns); 
-        printf("%d\n", ns);
         int j;
         for(j = 0; j < ns; j++){
             queue_t * d;
-            printf("%d\n", j);
             queue_take(sq[j], &d);
             assert(sq[j] == d);
             i++;
@@ -328,6 +327,11 @@ void test_select(void){
     pthread_t pthread;
     pthread_create(&pthread, NULL, waiter_thread, &tctrl);
     srand(12345);
+    for(i=0; i<tctrl.ns; i++){
+        int q = rand() % n;
+        queue_put(qarray[q], &qarray[q]);
+    }
+    sleep(1);
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
         queue_put(qarray[q], &qarray[q]);
