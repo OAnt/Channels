@@ -84,29 +84,21 @@ static inline void __set_callback(notification_callback_t * nc,
 void _queue_set_not_empty_callback(queue_t * q, callback_t callback,
         void * data)
 {
-    pthread_mutex_lock(&(q->ctrl.mutex));
     __set_callback(&(q->ctrl.not_empty_callback), callback, data); 
-    pthread_mutex_unlock(&(q->ctrl.mutex));
 }
 
 void _queue_set_not_full_callback(queue_t * q, callback_t callback,
         void * data)
 {
-    pthread_mutex_lock(&(q->ctrl.mutex));
     __set_callback(&(q->ctrl.not_full_callback), callback, data); 
-    pthread_mutex_unlock(&(q->ctrl.mutex));
 }
 
 void _queue_destroy_not_empty_callback(queue_t * q){
-    pthread_mutex_lock(&(q->ctrl.mutex));
     q->ctrl.not_empty_callback.set = 0;
-    pthread_mutex_unlock(&(q->ctrl.mutex));
 }
 
 void _queue_destroy_not_full_callback(queue_t * q){
-    pthread_mutex_lock(&(q->ctrl.mutex));
     q->ctrl.not_full_callback.set = 0;
-    pthread_mutex_unlock(&(q->ctrl.mutex));
 }
 
 static inline void _queue_callback(queue_t * q, 
@@ -332,6 +324,14 @@ void __select_callback(queue_t * q, void * data){
     pthread_mutex_unlock(&(sdata->mutex));
 }
 
+static inline void _queue_lock(queue_t * q){
+    pthread_mutex_lock(&q->ctrl.mutex);
+}
+
+static inline void _queue_unlock(queue_t * q){
+    pthread_mutex_unlock(&q->ctrl.mutex);
+}
+
 int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
         void(*callback_setter)(queue_t*, callback_t, void *),
         void(*callback_destroyer)(queue_t *q),
@@ -339,6 +339,7 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
         struct timespec * ts){
     int i = 0;
     for(i = 0; i < n; i++){
+        _queue_lock(q[i]);
         if(peek_function(q[i]) > 0){
             //this queue already satisfy the condition
             //returning it
@@ -346,7 +347,11 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
             *ns += 1;
         }
     }
-    if(*ns > 0) return 0;
+    if(*ns > 0){
+        for(i = 0; i < n; i++)
+            _queue_unlock(q[i]);
+        return 0;
+    }
     int err;
     select_data_t sdata;
     if((err = select_data_init(&sdata)) != 0) return err;
@@ -355,8 +360,10 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
         select_data_destroy(&sdata);
         return err;
     }
-    for(i = 0; i < n;i ++)
+    for(i = 0; i < n;i ++){
         callback_setter(q[i], &__select_callback, &sdata);
+        _queue_unlock(q[i]);
+    }
     if(ts) 
         err = pthread_cond_timedwait(&(sdata.cond), &(sdata.mutex), ts);
     else 
@@ -369,8 +376,11 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
     *selected_queue = sdata.q;
     *ns = 1;
     pthread_mutex_unlock(&(sdata.mutex));
-    for(i = 0; i < n; i++)
+    for(i = 0; i < n; i++){
+        _queue_lock(q[i]);
         callback_destroyer(q[i]);
+        _queue_unlock(q[i]);
+    }
     select_data_destroy(&sdata);
     return 0;
 }
