@@ -293,25 +293,23 @@ typedef struct {
     int n;
     int ns;
     queue_t ** q;
-    queue_t * ctrlq;
 }thread_ctrl_t;
 
 void * waiter_thread(void * data){
     thread_ctrl_t * tctrl = (thread_ctrl_t *) data;
     queue_t ** q = tctrl->q;
-    queue_t * ctrlq = tctrl->ctrlq;
     int n = tctrl->n;
     int ns = tctrl->ns;
     int i = 0;
     queue_t * sq[n];
     while(i < ns){
-        queue_t * ptr;
         int ns = 0;
-        queue_take(ctrlq, &ptr);
         queue_select_not_empty(q, n, sq, &ns); 
+        printf("%d\n", ns);
         int j;
         for(j = 0; j < ns; j++){
             queue_t * d;
+            printf("%d\n", j);
             queue_take(sq[j], &d);
             assert(sq[j] == d);
             i++;
@@ -326,21 +324,18 @@ void test_select(void){
     queue_t * qarray[n];
     for(i=0; i < n; i++)
         qarray[i] = queue_new(3, sizeof(queue_t*));
-    queue_t * ctrlq = queue_new(1, sizeof(queue_t *));
-    thread_ctrl_t tctrl = {n, 13, qarray, ctrlq};
+    thread_ctrl_t tctrl = {n, 13, qarray};
     pthread_t pthread;
     pthread_create(&pthread, NULL, waiter_thread, &tctrl);
     srand(12345);
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
-        queue_put(ctrlq, &qarray[q]);
         queue_put(qarray[q], &qarray[q]);
     }
     void * zzz;
     pthread_join(pthread, &zzz);
     for(i=0; i < n; i++)
         queue_free(qarray[i]);
-    queue_free(ctrlq);
     printf("OK\n");
 }
 

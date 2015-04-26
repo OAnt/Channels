@@ -339,7 +339,7 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
         if(peek_function(q[i]) > 0){
             //this queue already satisfy the condition
             //returning it
-            *selected_queue = q[i];
+            selected_queue[*ns] = q[i];
             *ns += 1;
         }
     }
