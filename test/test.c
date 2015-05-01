@@ -360,6 +360,26 @@ void test_timed_select(void){
     printf("OK\n");
 }
 
+void __queue_lock(queue_t * q);
+void __queue_unlock(queue_t * q);
+
+void test_try_take_put(void){
+    printf("%s: \n", __func__);
+    queue_t * q = queue_new(0, sizeof(int)); 
+    __queue_lock(q);
+    assert(queue_try_put(q, NULL) == EBUSY);
+    assert(queue_try_take(q, NULL) == EBUSY);
+    __queue_unlock(q);
+    queue_free(q);
+    priority_queue_t * pq = priority_queue_new(0, sizeof(int)); 
+    __queue_lock(pq);
+    assert(priority_queue_try_put(pq, NULL, 0) == EBUSY);
+    assert(priority_queue_try_take(pq, NULL) == EBUSY);
+    __queue_unlock(pq);
+    priority_queue_free(pq);
+    printf("OK\n");
+}
+
 int main(int argc, char ** argv){
     (void)argc;
     (void)argv;
@@ -376,5 +396,7 @@ int main(int argc, char ** argv){
     test_callback();
     test_select();
     test_timed_select();
+    test_try_take_put();
     return 0;
 }
+

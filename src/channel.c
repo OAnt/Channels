@@ -16,7 +16,7 @@ typedef enum{
     PRIORITY_CHANNEL = 1,
 }channel_type_t;
 
-typedef void(*callback_t)(queue_t * q, void * data);
+typedef void(*callback_t)(struct queue_st * q, void * data);
 
 typedef struct{
     callback_t callback;
@@ -39,7 +39,7 @@ struct queue_st {
     buffer_t rb;
 };
 
-void queue_print(queue_t * q){
+void queue_print(struct queue_st * q){
     printf("%p, %s\n", q, _channel_type_name[q->type]);
 }
 
@@ -75,8 +75,18 @@ static inline void _queue_lock(queue_t * q){
     pthread_mutex_lock(&q->ctrl.mutex);
 }
 
+// never supposed to be used just for test puposes
+void __queue_lock(queue_t * q){
+    _queue_lock(q);
+}
+
 static inline void _queue_unlock(queue_t * q){
     pthread_mutex_unlock(&q->ctrl.mutex);
+}
+
+// never supposed to be used just for test puposes
+void __queue_unlock(queue_t * q){
+    _queue_unlock(q);
 }
 
 static inline void __set_callback(notification_callback_t * nc, 
@@ -159,13 +169,17 @@ void _gettimer(struct timespec * ts, unsigned int sec){
     ts->tv_sec = tv.tv_sec + sec;
 }
 
+typedef int (*mutex_lock_t)(pthread_mutex_t *);
+
 int _queue_take(queue_t *queue, void * data, 
-        struct timespec * abstime, buffer_take f)
+        struct timespec * abstime, buffer_take f,
+        mutex_lock_t mutex_lock)
 {
-    pthread_mutex_lock(&(queue->ctrl.mutex));
+    int err;
+    if((err = mutex_lock(&(queue->ctrl.mutex))) != 0)
+        return err;
     int res;
     while((res = f(&(queue->rb), data)) == 0){
-	int err;
         if((err = wait_empty(&(queue->ctrl), abstime)) != 0) {
 	    pthread_mutex_unlock(&(queue->ctrl.mutex));
 	    return err;
@@ -178,12 +192,14 @@ int _queue_take(queue_t *queue, void * data,
 }
 
 int _queue_put(queue_t * queue, void * value, 
-        struct timespec * abstime, buffer_write f, int priority)
+        struct timespec * abstime, buffer_write f, int priority,
+        mutex_lock_t mutex_lock)
 {
-    pthread_mutex_lock(&(queue->ctrl.mutex));
+    int err;
+    if((err = mutex_lock(&(queue->ctrl.mutex))) != 0)
+        return err;
     int res;
     while((res = f(&(queue->rb), value, priority)) == 0){
-	int err;
         if((err = wait_full(&(queue->ctrl), abstime)) != 0){
 	    pthread_mutex_unlock(&(queue->ctrl.mutex));
 	    return err;
@@ -230,26 +246,36 @@ void queue_free(queue_t * queue){
 
 int queue_take(queue_t * q, void * data){
     assert(q->type == FIFO_CHANNEL);
-    return _queue_take(q, data, NULL, rb_take);
+    return _queue_take(q, data, NULL, rb_take, pthread_mutex_lock);
+}
+
+int queue_try_take(queue_t *q, void * data){
+    assert(q->type == FIFO_CHANNEL);
+    return _queue_take(q, data, NULL, rb_take, pthread_mutex_trylock);
 }
 
 int queue_timed_take(queue_t * q, void * data, unsigned int sec){
     assert(q->type == FIFO_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_take(q, data, &ts, rb_take);
+    return _queue_take(q, data, &ts, rb_take, pthread_mutex_lock);
 }
 
 int queue_put(queue_t *q, void *data){
     assert(q->type == FIFO_CHANNEL);
-    return _queue_put(q, data, NULL, rb_write, 0);
+    return _queue_put(q, data, NULL, rb_write, 0, pthread_mutex_lock);
+}
+
+int queue_try_put(queue_t *q, void *data){
+    assert(q->type == FIFO_CHANNEL);
+    return _queue_put(q, data, NULL, rb_write, 0, pthread_mutex_trylock);
 }
 
 int queue_timed_put(queue_t * q, void *data, unsigned int sec){
     assert(q->type == FIFO_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_put(q, data, &ts, rb_write, 0);
+    return _queue_put(q, data, &ts, rb_write, 0, pthread_mutex_lock);
 }
 
 queue_t * queue_new(unsigned int n, size_t size){
@@ -262,7 +288,12 @@ priority_queue_t * priority_queue_new(unsigned int n, size_t size){
 
 int priority_queue_take(priority_queue_t * q, void * data){
     assert(q->type == PRIORITY_CHANNEL);
-    return _queue_take(q, data, NULL, hb_take);
+    return _queue_take(q, data, NULL, hb_take, pthread_mutex_lock);
+}
+
+int priority_queue_try_take(priority_queue_t * q, void * data){
+    assert(q->type == PRIORITY_CHANNEL);
+    return _queue_take(q, data, NULL, hb_take, pthread_mutex_trylock);
 }
 
 int priority_queue_timed_take(priority_queue_t * q, 
@@ -270,12 +301,19 @@ int priority_queue_timed_take(priority_queue_t * q,
     assert(q->type == PRIORITY_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_take(q, data, &ts, hb_take);
+    return _queue_take(q, data, &ts, hb_take, pthread_mutex_lock);
 }
 
 int priority_queue_put(priority_queue_t *q, void *data, int priority){
     assert(q->type == PRIORITY_CHANNEL);
-    return _queue_put(q, data, NULL, hb_write, priority);
+    return _queue_put(q, data, NULL, 
+            hb_write, priority, pthread_mutex_lock);
+}
+
+int priority_queue_try_put(priority_queue_t *q, void *data, int priority){
+    assert(q->type == PRIORITY_CHANNEL);
+    return _queue_put(q, data, NULL, 
+            hb_write, priority, pthread_mutex_trylock);
 }
 
 int priority_queue_timed_put(priority_queue_t * q, 
@@ -283,7 +321,8 @@ int priority_queue_timed_put(priority_queue_t * q,
     assert(q->type == PRIORITY_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_put(q, data, &ts, hb_write, priority);
+    return _queue_put(q, data, &ts, 
+            hb_write, priority, pthread_mutex_lock);
 }
 
 void priority_queue_free(priority_queue_t * q){
@@ -332,10 +371,11 @@ void __select_callback(queue_t * q, void * data){
     pthread_mutex_unlock(&(sdata->mutex));
 }
 
-int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
-        void(*callback_setter)(queue_t*, callback_t, void *),
-        void(*callback_destroyer)(queue_t *q),
-        int peek_function(queue_t * q),
+int _select(struct queue_st ** q, int n, 
+        struct queue_st ** selected_queue, int * ns,
+        void(*callback_setter)(struct queue_st*, callback_t, void *),
+        void(*callback_destroyer)(struct queue_st *q),
+        int peek_function(struct queue_st * q),
         struct timespec * ts){
     int i = 0;
     *ns = 0;
@@ -386,8 +426,8 @@ int _select(queue_t ** q, int n, queue_t ** selected_queue, int * ns,
     return 0;
 }
 
-int queue_select_not_full(queue_t ** q, int n, 
-        queue_t ** selected_queue, int * ns)
+int queue_select_not_full(struct queue_st ** q, int n, 
+        struct queue_st ** selected_queue, int * ns)
 {
     return _select(q, n, selected_queue, ns,
         _queue_set_not_full_callback, 
@@ -396,8 +436,8 @@ int queue_select_not_full(queue_t ** q, int n,
         NULL);
 }
 
-int queue_timed_select_not_full(queue_t ** q, int n,
-        queue_t ** selected_queue, int *ns,
+int queue_timed_select_not_full(struct queue_st ** q, int n,
+        struct queue_st ** selected_queue, int *ns,
         unsigned int s)
 {
     struct timespec ts;
@@ -409,8 +449,8 @@ int queue_timed_select_not_full(queue_t ** q, int n,
         &ts);
 }
 
-int queue_select_not_empty(queue_t ** q, int n,
-        queue_t ** selected_queue, int * ns)
+int queue_select_not_empty(struct queue_st ** q, int n,
+        struct queue_st ** selected_queue, int * ns)
 {
     return _select(q, n, selected_queue, ns,
             _queue_set_not_empty_callback,
@@ -419,8 +459,8 @@ int queue_select_not_empty(queue_t ** q, int n,
             NULL);
 }
 
-int queue_timed_select_not_empty(queue_t ** q, int n,
-        queue_t ** selected_queue, int * ns,
+int queue_timed_select_not_empty(struct queue_st ** q, int n,
+        struct queue_st ** selected_queue, int * ns,
         unsigned int s)
 {
     struct timespec ts;
