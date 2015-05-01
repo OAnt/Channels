@@ -393,7 +393,7 @@ int _select(struct queue_st ** q, int n,
             _queue_unlock(q[i]);
         return 0;
     }
-    int err;
+    int err = 0;
     select_data_t sdata;
     if((err = select_data_init(&sdata)) != 0) return err;
     err = pthread_mutex_lock(&(sdata.mutex));
@@ -409,21 +409,19 @@ int _select(struct queue_st ** q, int n,
         err = pthread_cond_timedwait(&(sdata.cond), &(sdata.mutex), ts);
     else 
         err = pthread_cond_wait(&(sdata.cond), &(sdata.mutex));
-    if(err != 0){
-        pthread_mutex_unlock(&(sdata.mutex));
-        select_data_destroy(&sdata);
-        return err;
-    }
+    if(err != 0)
+        goto end_select;
     *selected_queue = sdata.q;
     *ns = 1;
+end_select:
+    pthread_mutex_unlock(&(sdata.mutex));
     for(i = 0; i < n; i++){
         _queue_lock(q[i]);
         callback_destroyer(q[i]);
         _queue_unlock(q[i]);
     }
-    pthread_mutex_unlock(&(sdata.mutex));
     select_data_destroy(&sdata);
-    return 0;
+    return err;
 }
 
 int queue_select_not_full(struct queue_st ** q, int n, 
