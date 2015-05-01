@@ -186,8 +186,8 @@ int _queue_take(queue_t *queue, void * data,
 	}
     }
     notify_not_full(queue);
-    pthread_mutex_unlock(&(queue->ctrl.mutex));
     _queue_callback(queue, &queue->ctrl.not_full_callback);
+    pthread_mutex_unlock(&(queue->ctrl.mutex));
     return 0;
 }
 
@@ -206,8 +206,8 @@ int _queue_put(queue_t * queue, void * value,
 	}
     }
     notify_not_empty(queue);
-    pthread_mutex_unlock(&(queue->ctrl.mutex));
     _queue_callback(queue, &queue->ctrl.not_empty_callback);
+    pthread_mutex_unlock(&(queue->ctrl.mutex));
     return 0;
 }
 
