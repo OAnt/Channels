@@ -416,12 +416,12 @@ int _select(struct queue_st ** q, int n,
     }
     *selected_queue = sdata.q;
     *ns = 1;
-    pthread_mutex_unlock(&(sdata.mutex));
     for(i = 0; i < n; i++){
         _queue_lock(q[i]);
         callback_destroyer(q[i]);
         _queue_unlock(q[i]);
     }
+    pthread_mutex_unlock(&(sdata.mutex));
     select_data_destroy(&sdata);
     return 0;
 }
