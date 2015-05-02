@@ -366,12 +366,16 @@ void __queue_unlock(queue_t * q);
 void test_try_take_put(void){
     printf("%s: \n", __func__);
     queue_t * q = queue_new(0, sizeof(int)); 
+    assert(queue_try_put(q, NULL) == EAGAIN);
+    assert(queue_try_take(q, NULL) == EAGAIN);
     __queue_lock(q);
     assert(queue_try_put(q, NULL) == EBUSY);
     assert(queue_try_take(q, NULL) == EBUSY);
     __queue_unlock(q);
     queue_free(q);
     priority_queue_t * pq = priority_queue_new(0, sizeof(int)); 
+    assert(priority_queue_try_put(pq, NULL, 0) == EAGAIN);
+    assert(priority_queue_try_take(pq, NULL) == EAGAIN);
     __queue_lock(pq);
     assert(priority_queue_try_put(pq, NULL, 0) == EBUSY);
     assert(priority_queue_try_take(pq, NULL) == EBUSY);
