@@ -172,11 +172,10 @@ void _gettimer(struct timespec * ts, unsigned int sec){
 typedef int (*mutex_lock_t)(pthread_mutex_t *);
 
 int _queue_take(queue_t *queue, void * data, 
-        struct timespec * abstime, buffer_take f,
-        mutex_lock_t mutex_lock)
+        struct timespec * abstime, buffer_take f)
 {
     int err;
-    if((err = mutex_lock(&(queue->ctrl.mutex))) != 0)
+    if((err = pthread_mutex_lock(&(queue->ctrl.mutex))) != 0)
         return err;
     int res;
     while((res = f(&(queue->rb), data)) == 0){
@@ -191,12 +190,26 @@ int _queue_take(queue_t *queue, void * data,
     return 0;
 }
 
+int _queue_try_take(queue_t * q, void * data, buffer_take f){
+    int err = 0;
+    if((err = pthread_mutex_trylock(&(q->ctrl.mutex))) != 0)
+        return err;
+    if(f(&(q->rb), data) == 0){
+        err = EAGAIN;
+        goto end_queue_try_take;
+    }
+    notify_not_full(q);
+    _queue_callback(q, &q->ctrl.not_full_callback);
+end_queue_try_take:
+    pthread_mutex_unlock(&(q->ctrl.mutex));
+    return err;
+}
+
 int _queue_put(queue_t * queue, void * value, 
-        struct timespec * abstime, buffer_write f, int priority,
-        mutex_lock_t mutex_lock)
+        struct timespec * abstime, buffer_write f, int priority)
 {
     int err;
-    if((err = mutex_lock(&(queue->ctrl.mutex))) != 0)
+    if((err = pthread_mutex_lock(&(queue->ctrl.mutex))) != 0)
         return err;
     int res;
     while((res = f(&(queue->rb), value, priority)) == 0){
@@ -209,6 +222,21 @@ int _queue_put(queue_t * queue, void * value,
     _queue_callback(queue, &queue->ctrl.not_empty_callback);
     pthread_mutex_unlock(&(queue->ctrl.mutex));
     return 0;
+}
+
+int _queue_try_put(queue_t * q, void * data, buffer_write f, int priority){
+    int err = 0;
+    if((err = pthread_mutex_trylock(&(q->ctrl.mutex))) != 0)
+        return err;
+    if(f(&(q->rb), data, priority) == 0){
+        err = EAGAIN;
+        goto end_queue_try_put;
+    }
+    notify_not_empty(q);
+    _queue_callback(q, &q->ctrl.not_empty_callback);
+end_queue_try_put:
+    pthread_mutex_unlock(&(q->ctrl.mutex));
+    return err;
 }
 
 int queue_init(queue_t * queue, unsigned int n, size_t size,
@@ -246,36 +274,36 @@ void queue_free(queue_t * queue){
 
 int queue_take(queue_t * q, void * data){
     assert(q->type == FIFO_CHANNEL);
-    return _queue_take(q, data, NULL, rb_take, pthread_mutex_lock);
+    return _queue_take(q, data, NULL, rb_take);
 }
 
 int queue_try_take(queue_t *q, void * data){
     assert(q->type == FIFO_CHANNEL);
-    return _queue_take(q, data, NULL, rb_take, pthread_mutex_trylock);
+    return _queue_try_take(q, data, rb_take);
 }
 
 int queue_timed_take(queue_t * q, void * data, unsigned int sec){
     assert(q->type == FIFO_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_take(q, data, &ts, rb_take, pthread_mutex_lock);
+    return _queue_take(q, data, &ts, rb_take);
 }
 
 int queue_put(queue_t *q, void *data){
     assert(q->type == FIFO_CHANNEL);
-    return _queue_put(q, data, NULL, rb_write, 0, pthread_mutex_lock);
+    return _queue_put(q, data, NULL, rb_write, 0);
 }
 
 int queue_try_put(queue_t *q, void *data){
     assert(q->type == FIFO_CHANNEL);
-    return _queue_put(q, data, NULL, rb_write, 0, pthread_mutex_trylock);
+    return _queue_try_put(q, data, rb_write, 0);
 }
 
 int queue_timed_put(queue_t * q, void *data, unsigned int sec){
     assert(q->type == FIFO_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_put(q, data, &ts, rb_write, 0, pthread_mutex_lock);
+    return _queue_put(q, data, &ts, rb_write, 0);
 }
 
 queue_t * queue_new(unsigned int n, size_t size){
@@ -288,12 +316,12 @@ priority_queue_t * priority_queue_new(unsigned int n, size_t size){
 
 int priority_queue_take(priority_queue_t * q, void * data){
     assert(q->type == PRIORITY_CHANNEL);
-    return _queue_take(q, data, NULL, hb_take, pthread_mutex_lock);
+    return _queue_take(q, data, NULL, hb_take);
 }
 
 int priority_queue_try_take(priority_queue_t * q, void * data){
     assert(q->type == PRIORITY_CHANNEL);
-    return _queue_take(q, data, NULL, hb_take, pthread_mutex_trylock);
+    return _queue_try_take(q, data, hb_take);
 }
 
 int priority_queue_timed_take(priority_queue_t * q, 
@@ -301,19 +329,19 @@ int priority_queue_timed_take(priority_queue_t * q,
     assert(q->type == PRIORITY_CHANNEL);
     struct timespec ts;
     _gettimer(&ts, sec);
-    return _queue_take(q, data, &ts, hb_take, pthread_mutex_lock);
+    return _queue_take(q, data, &ts, hb_take);
 }
 
 int priority_queue_put(priority_queue_t *q, void *data, int priority){
     assert(q->type == PRIORITY_CHANNEL);
     return _queue_put(q, data, NULL, 
-            hb_write, priority, pthread_mutex_lock);
+            hb_write, priority);
 }
 
 int priority_queue_try_put(priority_queue_t *q, void *data, int priority){
     assert(q->type == PRIORITY_CHANNEL);
-    return _queue_put(q, data, NULL, 
-            hb_write, priority, pthread_mutex_trylock);
+    return _queue_try_put(q, data, 
+            hb_write, priority);
 }
 
 int priority_queue_timed_put(priority_queue_t * q, 
@@ -322,7 +350,7 @@ int priority_queue_timed_put(priority_queue_t * q,
     struct timespec ts;
     _gettimer(&ts, sec);
     return _queue_put(q, data, &ts, 
-            hb_write, priority, pthread_mutex_lock);
+            hb_write, priority);
 }
 
 void priority_queue_free(priority_queue_t * q){
