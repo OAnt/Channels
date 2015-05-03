@@ -7,12 +7,12 @@ typedef struct queue_st queue_t;
 typedef struct queue_st priority_queue_t;
 
 /*
-* allocate a new fifo queue able to hold n elements of size size.
+* allocates a new fifo queue able to hold n elements of size size.
 * returns NULL if the initialization was unsuccesful at some point
 */
 queue_t * queue_new(unsigned int n, size_t size);
 /*
-* retrieve the first element from the queue and copies it to
+* retrieves the first element from the queue and copies it to
 * data
 * or blocks until an element is available
 * data must point to block of memory of at least size
@@ -22,7 +22,7 @@ queue_t * queue_new(unsigned int n, size_t size);
 */
 int queue_take(queue_t * queue, void * data);
 /*
-* retrieve the first element from the queue and copies it to
+* retrieves the first element from the queue and copies it to
 * data
 * or blocks until an element is available or if sec seconds have passed
 * data must point to block of memory of at least size
