@@ -6,19 +6,93 @@
 typedef struct queue_st queue_t;
 typedef struct queue_st priority_queue_t;
 
+/*
+* allocate a new fifo queue able to hold n elements of size size.
+* returns NULL if the initialization was unsuccesful at some point
+*/
 queue_t * queue_new(unsigned int n, size_t size);
-// blocking
+/*
+* retrieve the first element from the queue and copies it to
+* data
+* or blocks until an element is available
+* data must point to block of memory of at least size
+* where size is the value passed when allocating the queue
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+*/
 int queue_take(queue_t * queue, void * data);
-// blocking, waits up to sec for data to be available
+/*
+* retrieve the first element from the queue and copies it to
+* data
+* or blocks until an element is available or if sec seconds have passed
+* data must point to block of memory of at least size
+* where size is the value passed when allocating the queue
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+* returns ETIMEDOUT if the when the timer has ellapsed
+*/
 int queue_timed_take(queue_t * queue, void * data, unsigned int sec);
-// non blocking
+/*
+* tries to retrieve the first element from the queue and copies it to
+* data
+* this call is non blocking
+* data must point to block of memory of at least size
+* where size is the value passed when allocating the queue
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+* returns EAGAIN if no data is available
+* returns EBUSY if another thread is already trying to access
+* the queue
+*/
 int queue_try_take(queue_t * queue, void * data);
-// blocking
+/*
+* retrieves the first element from the queue and copies it to
+* data
+* this call is non blocking
+* data must point to block of memory of at least size
+* where size is the value passed when allocating the queue
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+* returns EAGAIN if no data is available
+*/
+int queue_no_wait_take(priority_queue_t * q, void * data);
+/*
+* copies the memory pointed by value into the queue
+* or blocks until there is room in the queue.
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+*/
 int queue_put(queue_t * queue, void * value);
-// blocking, waits up to sec for room to be available
+/*
+* copies the memory pointed by value into the queue
+* or blocks until there is room in the queue or if 
+* sec second have passed.
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+* returns ETIMEDOUT if the when the timer has ellapsed
+*/
 int queue_timed_put(queue_t * queue, void * data, unsigned int sec);
-// non blocking
+/*
+* tries to copy the memory pointed by value into the queue
+* this call is non blocking
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+* returns EAGAIN if no room is available
+* returns EBUSY if another thread is already trying to access
+* the queue
+*/
 int queue_try_put(queue_t * queue, void * data);
+/*
+* copies the memory pointed by value into the queue
+* this call is non blocking
+* returns 0 when the operation is succesful
+* returns EINVAL if the queue is not properly initialized
+* returns EAGAIN if no room is available
+*/
+int queue_no_wait_put(queue_t *q, void *data);
+/*
+* free a previously allocated queue
+*/
 void queue_free(queue_t * queue);
 
 priority_queue_t * priority_queue_new(unsigned int n, size_t size);
@@ -30,6 +104,8 @@ int priority_queue_timed_take(priority_queue_t * q,
 // non blocking
 int priority_queue_try_take(priority_queue_t * q,
         void * data);
+int priority_queue_no_wait_take(priority_queue_t * q, 
+        void * data);
 // blocking
 int priority_queue_put(priority_queue_t *q, void *data, int priority);
 // blocking, waits up to sec for data to be available
@@ -38,6 +114,8 @@ int priority_queue_timed_put(priority_queue_t * q,
 // non blocking
 int priority_queue_try_put(priority_queue_t * q,
         void * data, int priority);
+int priority_queue_no_wait_put(priority_queue_t *q, 
+        void *data, int priority);
 void priority_queue_free(priority_queue_t * q);
 
 //beware a queue can only be selected once
