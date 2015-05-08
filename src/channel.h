@@ -118,9 +118,6 @@ int priority_queue_no_wait_put(priority_queue_t *q,
         void *data, int priority);
 void priority_queue_free(priority_queue_t * q);
 
-//beware a queue can only be selected once
-//for not full and once for not empty
-//at the time
 int queue_select_not_full(struct queue_st ** q, int n,
         struct queue_st ** selected_queue, int * ns);
 int queue_timed_select_not_full(struct queue_st ** q, int n,
