@@ -134,4 +134,15 @@ int queue_timed_select_not_empty(struct queue_st ** q, int n,
 
 void queue_print(struct queue_st * q);
 
+typedef struct notification_callback_st notification_callback_t;
+typedef void(callback_t)(struct queue_st * q, void * data);
+
+notification_callback_t * queue_append_not_empty_callback(
+        struct queue_st *q,
+        callback_t callback, void * data);
+notification_callback_t * queue_append_not_full_callback(
+        struct queue_st *q,
+        callback_t callback, void * data);
+void queue_remove_callback(notification_callback_t * nc);
+
 #endif

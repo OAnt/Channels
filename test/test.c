@@ -262,11 +262,6 @@ void test_priority_queue_write_take(void){
     printf("OK\n");
 }
 
-void _queue_set_not_empty_callback(queue_t * q, 
-        void(*callback)(queue_t * q, void * data), 
-        void * data);
-void _queue_destroy_not_empty_callback(queue_t * q);
-
 void dummy_callback(queue_t *q, void * data){
     (void)q;
     int * i = (int *) data;
@@ -277,12 +272,12 @@ void test_callback(void){
     printf("%s: \n", __func__);
     queue_t * q = queue_new(5, sizeof(int));
     int d = 0;
-    _queue_set_not_empty_callback(q, dummy_callback, &d);
+    notification_callback_t * nc = queue_append_not_empty_callback(q, dummy_callback, &d);
     queue_put(q, &d);
     queue_put(q, &d);
     queue_put(q, &d);
     assert(d == 3);
-    _queue_destroy_not_empty_callback(q);
+    queue_remove_callback(nc);
     queue_put(q, &d);
     queue_put(q, &d);
     assert(d == 3);
@@ -309,7 +304,7 @@ void * waiter_thread(void * data){
         int j;
         for(j = 0; j < ns; j++){
             queue_t * d;
-            queue_take(sq[j], &d);
+            queue_no_wait_take(sq[j], &d);
             assert(sq[j] == d);
             i++;
         }
