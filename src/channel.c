@@ -16,9 +16,16 @@ typedef enum{
     PRIORITY_CHANNEL = 1,
 }channel_type_t;
 
+static char * _notification_type_name[] = {
+    "HEAD",
+    "NODE",
+    "DEAD"
+};
+
 typedef enum{
     HEAD = 0,
-    NODE = 1
+    NODE = 1,
+    DEAD = 2,
 }link_list_node_t;
 
 struct notification_callback_st{
@@ -47,6 +54,10 @@ struct queue_st {
 
 void queue_print(struct queue_st * q){
     printf("%p, %s\n", q, _channel_type_name[q->type]);
+}
+
+void notification_print(struct notification_callback_st * nc){
+    printf("%p, %s\n", nc, _notification_type_name[nc->type]);
 }
 
 int init_dctrl(dctrl_t * dctrl){
@@ -112,6 +123,7 @@ static inline void _append_callback(struct notification_callback_st ** d,
     if(*d){
         nc->type = NODE;
         nc->n = (*d)->n;
+        if(nc->n) nc->n->p = nc;
         (*d)->n = nc;
     }else{
         nc->type = HEAD;
@@ -126,6 +138,7 @@ void _remove_callback(struct notification_callback_st * nc){
     struct notification_callback_st * p = nc->p;
     if(p) p->n = n;
     if(n) n->p = p;
+    nc->type = DEAD;
 }
 
 void _queue_append_not_empty_callback(struct queue_st * q, 
