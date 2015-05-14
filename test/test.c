@@ -322,10 +322,10 @@ void test_select(void){
     for(i=0; i < n; i++)
         qarray[i] = queue_new(3, sizeof(queue_t*));
     thread_ctrl_t tctrl = {n, 13, qarray};
-    pthread_t pthread;
-    pthread_create(&pthread, NULL, waiter_thread, &tctrl);
-    pthread_create(&pthread, NULL, waiter_thread, &tctrl);
-    pthread_create(&pthread, NULL, waiter_thread, &tctrl);
+    pthread_t pthread[3];
+    pthread_create(&pthread[0], NULL, waiter_thread, &tctrl);
+    pthread_create(&pthread[1], NULL, waiter_thread, &tctrl);
+    pthread_create(&pthread[2], NULL, waiter_thread, &tctrl);
     srand(12345);
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
@@ -342,7 +342,8 @@ void test_select(void){
         queue_put(qarray[q],&value);
     }
     void * zzz;
-    pthread_join(pthread, &zzz);
+    for(i=0;i<3;i++)
+        pthread_join(pthread[i], &zzz);
     for(i=0; i < n; i++)
         queue_free(qarray[i]);
     printf("OK\n");
