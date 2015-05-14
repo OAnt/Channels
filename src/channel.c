@@ -153,7 +153,11 @@ static inline notification_callback_t * __queue_append_callback(
     if(!nc) return nc;
     nc->callback = callback;
     nc->data = data;
-    _queue_lock(q);
+    int err;
+    if((err = _queue_lock(q)) != 0){
+        free(nc);
+        return NULL;
+    }
     callback_setter(q, nc);
     _queue_unlock(q);
     return nc;

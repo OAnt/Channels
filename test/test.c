@@ -300,15 +300,18 @@ void * waiter_thread(void * data){
     queue_t * sq[n];
     while(i < 2*ns){
         int ns = 0;
-        queue_select_not_empty(q, n, sq, &ns); 
+        queue_timed_select_not_empty(q, n, sq, &ns, 1); 
         int j;
         for(j = 0; j < ns; j++){
             queue_t * d;
-            queue_no_wait_take(sq[j], &d);
-            assert(sq[j] == d);
+            if(queue_no_wait_take(sq[j], &d) != EAGAIN){
+                if(d == (void*)1) goto end_test;
+                assert(sq[j] == d);
+            }
             i++;
         }
     }
+end_test:
     return NULL;
 }
 
@@ -321,6 +324,8 @@ void test_select(void){
     thread_ctrl_t tctrl = {n, 13, qarray};
     pthread_t pthread;
     pthread_create(&pthread, NULL, waiter_thread, &tctrl);
+    pthread_create(&pthread, NULL, waiter_thread, &tctrl);
+    pthread_create(&pthread, NULL, waiter_thread, &tctrl);
     srand(12345);
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
@@ -330,6 +335,11 @@ void test_select(void){
     for(i=0; i<tctrl.ns; i++){
         int q = rand() % n;
         queue_put(qarray[q], &qarray[q]);
+    }
+    for(i=0; i<3; i++){
+        int q = rand() % n;
+        void * value =  (void*)1;
+        queue_put(qarray[q],&value);
     }
     void * zzz;
     pthread_join(pthread, &zzz);
